@@ -1,0 +1,35 @@
+# Web Scraping
+playwright
+beautifulsoup4
+lxml
+
+# HTTP Requests
+requests
+
+# News Parsing
+feedparser
+
+# Environment Variables
+python-dotenv
+
+# Embeddings — Phase 2
+sentence-transformers
+
+# Vector Storage — Phase 2
+chromadb
+
+# LLM — Phase 3 & 5
+groq
+
+# Scheduling — Phase 8
+apscheduler
+
+# Backend API — Phase 7
+fastapi
+uvicorn
+
+# Email Delivery — Phase 6
+resend
+
+# Data
+numpy

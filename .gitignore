@@ -1,0 +1,37 @@
+# Environment
+.env
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# ChromaDB
+backend/chroma_store/
+
+# Node
+node_modules/
+.next/
+npm-debug.log*
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
