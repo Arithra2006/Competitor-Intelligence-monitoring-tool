@@ -23,6 +23,18 @@ An autonomous pipeline system that monitors competitors across the web, detects 
 
 ---
 
+SCREENSHOTS OF THE PROJECT:
+
+-DASHBOARD PAGE:<img width="1802" height="911" alt="Screenshot 2026-06-06 184031" src="https://github.com/user-attachments/assets/e4728897-6cb9-4e01-a626-8f909adfbca6" />
+COMPETITORS PAGE: <img width="1908" height="895" alt="Screenshot 2026-06-06 184002" src="https://github.com/user-attachments/assets/ff9d3da9-54e4-4353-92c7-70e014df6e83" />
+REPORTS PAGE: <img width="1885" height="905" alt="Screenshot 2026-06-06 184059" src="https://github.com/user-attachments/assets/e67d61de-861a-4971-b2f3-1d3fad1995c0" />
+TRENDS PAGE: <img width="1643" height="808" alt="Screenshot 2026-06-06 184149" src="https://github.com/user-attachments/assets/9c75a50d-727f-4dfb-8aef-83ddc594fe20" />
+
+THE MAIL USER RECIEVES: <img width="1372" height="650" alt="Screenshot 2026-06-06 184543" src="https://github.com/user-attachments/assets/c84e2860-655e-4d88-b436-a09496e027c7" />
+
+
+
+
 ## ✨ Features
 
 ### 🔍 Collector
