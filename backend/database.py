@@ -93,6 +93,19 @@ def init_db():
         )
     """)
 
+    # Pipeline logs table — step-by-step activity log for the dashboard
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pipeline_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            competitor_id INTEGER NOT NULL,
+            phase TEXT NOT NULL,
+            message TEXT NOT NULL,
+            level TEXT DEFAULT 'info',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (competitor_id) REFERENCES competitors(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
     print("✅ Database initialized successfully.")
@@ -275,6 +288,38 @@ def get_reports_by_competitor(competitor_id):
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+# ─────────────────────────────────────────
+# PIPELINE LOG QUERIES
+# ─────────────────────────────────────────
+
+def insert_log(competitor_id, phase, message, level="info"):
+    """Save a pipeline activity log entry."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO pipeline_logs (competitor_id, phase, message, level)
+        VALUES (?, ?, ?, ?)
+    """, (competitor_id, phase, message, level))
+    conn.commit()
+    conn.close()
+
+
+def get_logs_by_competitor(competitor_id, limit=100):
+    """Get recent pipeline logs for a competitor, most recent first."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM pipeline_logs
+        WHERE competitor_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (competitor_id, limit))
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
 
 def get_feedback_stats_by_source() -> dict:
     """
