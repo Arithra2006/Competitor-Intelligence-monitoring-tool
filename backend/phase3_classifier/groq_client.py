@@ -21,8 +21,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 # Best free models on Groq — verify current availability at console.groq.com
 # llama-3.3-70b-versatile = best quality, still fast
 # llama3-8b-8192 = fastest, good for classification
-CLASSIFIER_MODEL = "llama-3.3-70b-versatile"
-REPORTER_MODEL   = "llama-3.3-70b-versatile"
+CLASSIFIER_MODEL = "openai/gpt-oss-120b"
+REPORTER_MODEL   = "openai/gpt-oss-120b"
 
 MAX_TOKENS_CLASSIFIER = 500    # Classification needs short focused output
 MAX_TOKENS_REPORTER   = 2000   # Reports need longer output
