@@ -54,7 +54,7 @@ class Snapshot:
             crawled_at=data.get("crawled_at"),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"Snapshot("
             f"id={self.id}, "
@@ -130,7 +130,7 @@ class DetectedChange:
         else:
             return "TRIVIAL"
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"DetectedChange("
             f"competitor_id={self.competitor_id}, "

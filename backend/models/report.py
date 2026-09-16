@@ -77,7 +77,7 @@ class IntelligenceReport:
             metadata=data.get("metadata", {}),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"IntelligenceReport("
             f"competitor='{self.competitor_name}', "

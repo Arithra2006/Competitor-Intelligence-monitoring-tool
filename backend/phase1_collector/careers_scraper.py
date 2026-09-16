@@ -109,7 +109,7 @@ async def _fetch_careers_text(url: str):
             )
 
             page = await context.new_page()
-            await page.route("*/", _block_unnecessary_resources)
+            await page.route("**/*", _block_unnecessary_resources)
 
             try:
                 await page.goto(url, timeout=TIMEOUT_MS, wait_until="domcontentloaded")
@@ -152,6 +152,11 @@ def _extract_jobs_from_html(html: str, url: str) -> tuple:
     """
     soup = BeautifulSoup(html, "html.parser")
 
+    # Count job links BEFORE stripping anything — look for <a> tags
+    # whose href suggests a job posting. Done first because
+    # decompose() below removes elements we might need to inspect.
+    job_count_estimate = _count_job_links(soup)
+
     # Remove noise
     for tag in soup(["script", "style", "nav", "footer",
                      "header", "meta", "noscript", "svg", "img"]):
@@ -164,26 +169,43 @@ def _extract_jobs_from_html(html: str, url: str) -> tuple:
         text = text[:MAX_TEXT_LENGTH]
 
     # Build metadata — signals for the scorer
-    metadata = _analyze_hiring_signals(text, url)
+    metadata = _analyze_hiring_signals(text, url, job_count_estimate)
 
     return text, metadata
 
 
-def _analyze_hiring_signals(text: str, url: str) -> dict:
+def _count_job_links(soup: BeautifulSoup) -> int:
+    """
+    Count likely job postings by looking at link structure,
+    not exact English phrases. Much more robust across
+    differently-worded careers pages (Greenhouse, Lever, Ashby, etc.)
+    than matching specific words like "Apply".
+    """
+    job_keywords_in_url = ["job", "career", "position", "opening", "role", "opportunit"]
+
+    candidate_links = set()
+
+    for link in soup.find_all("a", href=True):
+        href = link["href"].lower()
+        link_text = link.get_text(strip=True)
+
+        # Skip empty or clearly non-job links (nav, social, etc.)
+        if not link_text or len(link_text) < 3:
+            continue
+
+        # A link is a likely job posting if its URL contains job-related keywords
+        if any(kw in href for kw in job_keywords_in_url):
+            candidate_links.add(href)
+
+    return len(candidate_links)
+
+
+def _analyze_hiring_signals(text: str, url: str, job_count_estimate: int) -> dict:
     """
     Analyze extracted text for hiring signals.
     Returns structured metadata dict.
     """
     text_lower = text.lower()
-
-    # Count approximate job listings
-    # Most careers pages repeat patterns like "Apply", "View role", job titles
-    job_count_estimate = max(
-        text_lower.count("apply"),
-        text_lower.count("view role"),
-        text_lower.count("job id"),
-        text_lower.count("open position"),
-    )
 
     # Detect AI hiring signals
     ai_signals = [kw for kw in AI_KEYWORDS if kw in text_lower]

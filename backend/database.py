@@ -17,6 +17,21 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def _clean_github_org(value):
+    """
+    Accepts either a plain org name ('calcom') or a full GitHub URL
+    ('https://github.com/calcom') and always returns just the org name.
+    """
+    if not value:
+        return value
+
+    value = value.strip()  # removes stray spaces
+
+    if "github.com" in value:
+        value = value.split("github.com/")[-1]
+        value = value.strip("/").split("/")[0]
+
+    return value
 
 def init_db():
     """Create all tables if they don't exist. Run once on startup."""
@@ -90,6 +105,7 @@ def init_db():
 def insert_competitor(name, website_url, careers_url=None,
                       github_org=None, reddit_keyword=None, frequency="weekly"):
     """Add a new competitor to track."""
+    github_org = _clean_github_org(github_org)
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""

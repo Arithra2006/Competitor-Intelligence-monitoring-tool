@@ -4,6 +4,7 @@
 # Turns raw text diffs into structured change types
 
 import json
+import difflib
 import sys
 import os
 
@@ -169,10 +170,15 @@ def _build_classification_prompt(change: DetectedChange) -> str:
     """
     Build the classification prompt for Groq.
     Includes old text, new text, source, and similarity score.
+
+    Instead of blindly showing the first N characters (which can miss
+    real changes that occur later in the page), this tries to show
+    Groq the actual differing sections first.
     """
-    # Truncate texts to avoid token limits
-    old_preview = change.old_text[:1500] if change.old_text else "No previous version"
-    new_preview = change.new_text[:1500] if change.new_text else "No new content"
+    old_preview, new_preview = _get_diff_relevant_text(
+        change.old_text or "",
+        change.new_text or "",
+    )
 
     return f"""
 Analyze this competitor content change and classify it.
@@ -190,6 +196,47 @@ NEW VERSION:
 
 Classify this change and respond with the JSON format specified.
 """.strip()
+
+
+def _get_diff_relevant_text(old_text: str, new_text: str, max_chars: int = 4000) -> tuple:
+    """
+    Find the actual differing sections between old and new text instead
+    of always truncating to the first N characters. This prevents Groq
+    from seeing identical beginnings and missing real changes that
+    happened later in the page.
+
+    Falls back to simple truncation if texts are already short enough,
+    or if no diff could be extracted for some reason.
+    """
+    if not old_text:
+        return "No previous version", new_text[:max_chars] if new_text else "No new content"
+    if not new_text:
+        return old_text[:max_chars], "No new content"
+
+    if len(old_text) <= max_chars and len(new_text) <= max_chars:
+        return old_text, new_text
+
+    # Find differing blocks using difflib
+    matcher = difflib.SequenceMatcher(None, old_text, new_text)
+    diff_old_parts = []
+    diff_new_parts = []
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag != "equal":
+            diff_old_parts.append(old_text[i1:i2])
+            diff_new_parts.append(new_text[j1:j2])
+
+    diff_old = " ... ".join(diff_old_parts).strip()[:max_chars]
+    diff_new = " ... ".join(diff_new_parts).strip()[:max_chars]
+
+    # If no real diff found, fall back to plain truncation
+    if not diff_old and not diff_new:
+        return old_text[:max_chars], new_text[:max_chars]
+
+    return (
+        diff_old or "No removed content",
+        diff_new or "No added content",
+    )
 
 
 def _parse_classification_response(raw_response: str) -> dict | None:

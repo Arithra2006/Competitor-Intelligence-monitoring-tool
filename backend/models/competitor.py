@@ -49,7 +49,7 @@ class Competitor:
             created_at=data.get("created_at"),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"Competitor("
             f"id={self.id}, "
@@ -95,7 +95,7 @@ class RawScrapedData:
             metadata=data.get("metadata", {}),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"RawScrapedData("
             f"competitor_id={self.competitor_id}, "

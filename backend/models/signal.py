@@ -101,7 +101,7 @@ class ClassifiedSignal:
             metadata=data.get("metadata", {}),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"ClassifiedSignal("
             f"competitor_id={self.competitor_id}, "
@@ -171,7 +171,7 @@ class ScoredSignal:
             metadata=data.get("metadata", {}),
         )
 
-    def _repr_(self):
+    def __repr__(self):
         return (
             f"ScoredSignal("
             f"competitor_id={self.competitor_id}, "
