@@ -106,6 +106,11 @@ def classify_change(detected_change: DetectedChange) -> ClassifiedSignal | None:
     print(f"   Confidence     : {confidence}%")
     print(f"   Reasoning      : {reasoning}")
 
+    # Pull the most recent source article/commit, if available, so the
+    # report can later show the actual original content instead of just
+    # Groq's short extracted phrase.
+    source_excerpt = _extract_source_excerpt(detected_change)
+
     # Build ClassifiedSignal
     signal = ClassifiedSignal(
         competitor_id=detected_change.competitor_id,
@@ -122,6 +127,7 @@ def classify_change(detected_change: DetectedChange) -> ClassifiedSignal | None:
             "key_evidence": key_evidence,
             "similarity_score": detected_change.similarity_score,
             "change_magnitude": detected_change.change_magnitude(),
+            "source_excerpt": source_excerpt,
         }
     )
 
@@ -165,6 +171,47 @@ def classify_changes_batch(
 # ─────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────
+
+def _extract_source_excerpt(change: DetectedChange) -> dict | None:
+    """
+    Pull the most recent article (news) or commit (github) from the
+    original scraped metadata, so the report can quote the real source
+    content instead of only a short AI-generated line.
+
+    Returns a small dict describing the excerpt, or None if the source
+    doesn't have this kind of structured data (e.g. website, careers).
+    """
+    meta = change.source_metadata or {}
+
+    if change.source == "news":
+        articles = meta.get("articles", [])
+        if not articles:
+            return None
+        latest = articles[0]  # Google News RSS returns newest first
+        return {
+            "kind": "article",
+            "title": latest.get("title", ""),
+            "summary": latest.get("summary", ""),
+            "source_name": latest.get("source", "Unknown"),
+            "published": latest.get("published", ""),
+            "link": latest.get("link", ""),
+        }
+
+    if change.source == "github":
+        commits = meta.get("commits", [])
+        if not commits:
+            return None
+        latest = commits[0]  # Most recently fetched commit
+        return {
+            "kind": "commit",
+            "repo": latest.get("repo", ""),
+            "message": latest.get("message", ""),
+            "author": latest.get("author", ""),
+            "date": latest.get("date", ""),
+        }
+
+    return None
+
 
 def _build_classification_prompt(change: DetectedChange) -> str:
     """

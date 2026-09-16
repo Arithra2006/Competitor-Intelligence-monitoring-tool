@@ -82,6 +82,12 @@ class DetectedChange:
     )
     change_type: Optional[str] = None        # Filled by Phase 3 classifier
     metadata: dict = field(default_factory=dict)
+    source_metadata: dict = field(default_factory=dict)
+    # ^ Original structured metadata from Phase 1 collector
+    # (e.g. {"articles": [...]} for news, {"commits": [...]} for github).
+    # Carried forward so the final report can show the actual source
+    # content (article title/summary, commit message) instead of only
+    # a short AI-generated line.
 
     def to_dict(self) -> dict:
         """Convert to dictionary."""
@@ -95,6 +101,7 @@ class DetectedChange:
             "detected_at": self.detected_at,
             "change_type": self.change_type,
             "metadata": self.metadata,
+            "source_metadata": self.source_metadata,
         }
 
     @classmethod
@@ -110,6 +117,7 @@ class DetectedChange:
             detected_at=data.get("detected_at"),
             change_type=data.get("change_type"),
             metadata=data.get("metadata", {}),
+            source_metadata=data.get("source_metadata", {}),
         )
 
     def similarity_percent(self) -> int:

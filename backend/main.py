@@ -1,7 +1,3 @@
-# backend/main.py
-# FastAPI entry point — serves all API endpoints for the dashboard
-# Run with: uvicorn main:app --reload --port 8000
-
 import sys
 import os
 from datetime import datetime, timezone
@@ -26,6 +22,7 @@ from database import (
     get_signals_by_competitor,
     get_reports_by_competitor,
     update_signal_feedback,
+    get_logs_by_competitor,
 )
 
 
@@ -564,6 +561,28 @@ async def get_timeline(competitor_id: int):
         "total_events" : len(events),
         "events"       : events,
     }
+
+
+# ─────────────────────────────────────────
+# PIPELINE LOGS ENDPOINT
+# ─────────────────────────────────────────
+
+@app.get("/api/logs/{competitor_id}")
+async def get_logs(competitor_id: int):
+    """Get recent pipeline activity logs for a competitor."""
+    competitor = get_competitor_by_id(competitor_id)
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+
+    logs = get_logs_by_competitor(competitor_id)
+
+    return {
+        "competitor": competitor["name"],
+        "logs": logs,
+        "count": len(logs),
+    }
+
+
 # ─────────────────────────────────────────
 # RUN
 # ─────────────────────────────────────────

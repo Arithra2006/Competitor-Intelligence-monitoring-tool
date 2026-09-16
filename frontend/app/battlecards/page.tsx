@@ -102,6 +102,7 @@ export default function BattlecardsPage() {
             <Link href="/trends" className="text-gray-400 hover:text-white transition">Trends</Link>
             <Link href="/battlecards" className="text-blue-400 font-medium">Battlecards</Link>
             <Link href="/timeline" className="text-gray-400 hover:text-white transition">Timeline</Link>
+            <Link href="/activity" className="text-gray-400 hover:text-white transition">Activity</Link>
           </nav>
         </div>
       </header>

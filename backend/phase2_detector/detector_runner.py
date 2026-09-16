@@ -1,3 +1,4 @@
+
 # backend/phase2_detector/detector_runner.py
 # Master runner for Phase 2 — ties embedder, ChromaDB, and similarity checker together
 # Takes Phase 1 output, returns meaningful changes for Phase 3 classifier
@@ -8,7 +9,7 @@ from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import init_db, get_latest_snapshot, get_competitor_by_id, get_all_competitors
+from database import init_db, get_latest_snapshot, get_competitor_by_id, get_all_competitors, insert_log
 from models.snapshot import DetectedChange
 from embedder import generate_embedding
 from chroma_client import store_embedding, get_stored_embedding
@@ -44,8 +45,11 @@ def run_detector_for_competitor(
     print(f"   Started at       : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{'='*55}")
 
+    insert_log(competitor_id, "detector", f"Started detector — checking {len(scraped_data)} source(s)")
+
     if not scraped_data:
         print("⚠️  No scraped data received — skipping detector")
+        insert_log(competitor_id, "detector", "No scraped data received — skipped", level="warning")
         return []
 
     detected_changes = []
@@ -60,26 +64,37 @@ def run_detector_for_competitor(
             if old_snapshot is None:
                 old_text = ""
                 print(f"   📌 First crawl for {data.source} — storing baseline")
+                insert_log(competitor_id, "detector", f"{data.source}: first crawl — baseline stored")
             else:
                 old_text = old_snapshot.get("raw_text", "")
 
             # Run similarity check + threshold filter
+            # Pass through the original scraped metadata (e.g. articles, commits)
+            # so it can be carried forward into the report later
             change = is_meaningful_change(
                 competitor_id=competitor_id,
                 source=data.source,
                 url=data.url,
                 new_text=data.raw_text,
                 old_text=old_text,
+                source_metadata=data.metadata,
             )
 
             if change:
                 detected_changes.append(change)
                 print(f"   ✅ Passed filter — queued for classification")
+                insert_log(
+                    competitor_id, "detector",
+                    f"{data.source}: meaningful change detected — similarity {change.similarity_score:.2f} ({change.change_magnitude()})"
+                )
             else:
                 print(f"   ⏭️  Filtered out — no meaningful change")
+                if old_snapshot is not None:
+                    insert_log(competitor_id, "detector", f"{data.source}: no meaningful change")
 
         except Exception as e:
             print(f"   ❌ Detector failed for {data.source}: {e}")
+            insert_log(competitor_id, "detector", f"{data.source}: detector failed — {e}", level="error")
             continue
 
     # Summary
@@ -90,6 +105,11 @@ def run_detector_for_competitor(
     if detected_changes:
         print(f"   Changed sources  : {[c.source for c in detected_changes]}")
     print(f"{'─'*55}\n")
+
+    insert_log(
+        competitor_id, "detector",
+        f"Detector complete — {len(detected_changes)} change(s) detected out of {len(scraped_data)} source(s)"
+    )
 
     return detected_changes
 

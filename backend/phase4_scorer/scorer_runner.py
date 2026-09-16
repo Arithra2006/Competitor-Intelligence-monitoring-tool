@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import init_db, get_competitor_by_id, get_all_competitors
+from database import init_db, get_competitor_by_id, get_all_competitors, insert_log
 from models.signal import ClassifiedSignal, ScoredSignal
 from evidence_aggregator import aggregate_evidence
 from confidence_scorer import calculate_confidence, format_confidence_report
@@ -43,8 +43,11 @@ def run_scorer_for_competitor(
     print(f"   Started at       : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{'='*55}")
 
+    insert_log(competitor_id, "scorer", f"Started scorer — {len(classified_signals)} signal(s) to score")
+
     if not classified_signals:
         print("⚠️  No signals to score — skipping")
+        insert_log(competitor_id, "scorer", "No signals to score — skipped", level="warning")
         return []
 
     # Step 1 — Aggregate evidence across sources
@@ -52,6 +55,7 @@ def run_scorer_for_competitor(
 
     if not evidence_bundles:
         print("⚠️  No evidence bundles built — skipping")
+        insert_log(competitor_id, "scorer", "No evidence bundles built — skipped", level="warning")
         return []
 
     # Step 2 — Apply weighted confidence formula
@@ -64,6 +68,13 @@ def run_scorer_for_competitor(
     # Step 4 — Print confidence report
     print(format_confidence_report(scored_signals))
 
+    # Log each scored signal individually
+    for s in scored_signals:
+        insert_log(
+            competitor_id, "scorer",
+            f"{s.signal_type}: scored {s.confidence:.1f}% confidence — {s.priority} priority"
+        )
+
     # Summary
     print(f"\n{'─'*55}")
     print(f"📊 Scorer complete for: {name}")
@@ -71,6 +82,11 @@ def run_scorer_for_competitor(
     if scored_signals:
         print(f"   Priority summary : {_priority_summary(scored_signals)}")
     print(f"{'─'*55}\n")
+
+    insert_log(
+        competitor_id, "scorer",
+        f"Scorer complete — {len(scored_signals)} signal(s) scored above threshold"
+    )
 
     return scored_signals
 

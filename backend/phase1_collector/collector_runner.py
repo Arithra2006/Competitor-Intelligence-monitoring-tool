@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import init_db, get_all_competitors, get_competitor_by_id
+from database import init_db, get_all_competitors, get_competitor_by_id, insert_log
 from models.competitor import Competitor, RawScrapedData
 
 from website_scraper import scrape_website
@@ -46,6 +46,8 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
     print(f"   Started at: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{'='*55}")
 
+    insert_log(comp_id, "collector", f"Started collection for {name}")
+
     results = []
 
     # ── 1. Website Scraper ──────────────────────────────
@@ -54,8 +56,12 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
             result = await scrape_website(comp_id, website)
             if result:
                 results.append(result)
+                insert_log(comp_id, "collector", f"Website scraped — {len(result.raw_text)} chars")
+            else:
+                insert_log(comp_id, "collector", "Website scrape returned no content", level="warning")
         except Exception as e:
             print(f"❌ Website scraper failed for {name}: {e}")
+            insert_log(comp_id, "collector", f"Website scraper failed: {e}", level="error")
     else:
         print("⏭️  No website URL — skipping website scraper")
 
@@ -65,8 +71,13 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
             result = await scrape_careers(comp_id, careers)
             if result:
                 results.append(result)
+                job_count = result.metadata.get("job_count", 0)
+                insert_log(comp_id, "collector", f"Careers page scraped — {job_count} jobs detected")
+            else:
+                insert_log(comp_id, "collector", "Careers scrape returned no content", level="warning")
         except Exception as e:
             print(f"❌ Careers scraper failed for {name}: {e}")
+            insert_log(comp_id, "collector", f"Careers scraper failed: {e}", level="error")
     else:
         print("⏭️  No careers URL — skipping careers scraper")
 
@@ -75,8 +86,13 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
         result = parse_news(comp_id, name)
         if result:
             results.append(result)
+            article_count = result.metadata.get("article_count", 0)
+            insert_log(comp_id, "collector", f"News parsed — {article_count} articles found")
+        else:
+            insert_log(comp_id, "collector", "No news articles found", level="warning")
     except Exception as e:
         print(f"❌ News parser failed for {name}: {e}")
+        insert_log(comp_id, "collector", f"News parser failed: {e}", level="error")
 
     # ── 4. GitHub Client ───────────────────────────────
     if github:
@@ -84,8 +100,13 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
             result = get_github_signals(comp_id, github)
             if result:
                 results.append(result)
+                repo_count = result.metadata.get("repo_count", 0)
+                insert_log(comp_id, "collector", f"GitHub signals fetched — {repo_count} repos for {github}")
+            else:
+                insert_log(comp_id, "collector", f"No public repos found for {github}", level="warning")
         except Exception as e:
             print(f"❌ GitHub client failed for {name}: {e}")
+            insert_log(comp_id, "collector", f"GitHub client failed: {e}", level="error")
     else:
         print("⏭️  No GitHub org — skipping GitHub client")
 
@@ -95,8 +116,10 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
             result = get_reddit_signals(comp_id, reddit_kw)
             if result:
                 results.append(result)
+                insert_log(comp_id, "collector", f"Reddit signals fetched for '{reddit_kw}'")
         except Exception as e:
             print(f"❌ Reddit client failed for {name}: {e}")
+            insert_log(comp_id, "collector", f"Reddit client failed: {e}", level="error")
     else:
         print("⏭️  No Reddit keyword — skipping Reddit client")
 
@@ -106,6 +129,11 @@ async def run_collector_for_competitor(competitor: dict) -> list[RawScrapedData]
     print(f"   Sources collected : {len(results)}/{_count_active_sources(competitor)}")
     print(f"   Sources           : {[r.source for r in results]}")
     print(f"{'─'*55}\n")
+
+    insert_log(
+        comp_id, "collector",
+        f"Collection complete — {len(results)}/{_count_active_sources(competitor)} sources collected"
+    )
 
     return results
 

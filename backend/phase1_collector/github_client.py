@@ -10,7 +10,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import insert_snapshot
+from database import insert_snapshot, insert_log
 from models.competitor import RawScrapedData
 
 
@@ -51,15 +51,17 @@ def get_github_signals(competitor_id: int, github_org: str) -> RawScrapedData | 
         RawScrapedData object with GitHub signals, or None on failure
     """
     print(f"🐙 Fetching GitHub signals for org: {github_org}")
+    insert_log(competitor_id, "collector", f"Fetching GitHub signals for org: {github_org}")
 
-    headers = _build_headers()
-    repos, repo_metadata = _fetch_repos(github_org, headers)
+    headers = _build_headers(competitor_id)
+    repos, repo_metadata = _fetch_repos(github_org, headers, competitor_id)
 
     if not repos:
         print(f"⚠️  No public repos found for {github_org} — skipping.")
+        insert_log(competitor_id, "collector", f"No public repos found for {github_org}", level="warning")
         return None
 
-    commits, commit_metadata = _fetch_recent_commits(github_org, repos, headers)
+    commits, commit_metadata = _fetch_recent_commits(github_org, repos, headers, competitor_id)
     raw_text = _build_raw_text(github_org, repos, commits)
     metadata = {**repo_metadata, **commit_metadata, "github_org": github_org}
 
@@ -87,7 +89,7 @@ def get_github_signals(competitor_id: int, github_org: str) -> RawScrapedData | 
 # INTERNAL HELPERS
 # ─────────────────────────────────────────
 
-def _build_headers() -> dict:
+def _build_headers(competitor_id: int) -> dict:
     """Build request headers. Use token if available for higher rate limits."""
     headers = {
         "Accept": "application/vnd.github.v3+json",
@@ -96,12 +98,14 @@ def _build_headers() -> dict:
     if GITHUB_TOKEN:
         headers["Authorization"] = f"token {GITHUB_TOKEN}"
         print("   🔑 Using GitHub token — higher rate limits active")
+        insert_log(competitor_id, "collector", "Using GitHub token — higher rate limits active")
     else:
         print("   ⚠️  No GitHub token — limited to 60 requests/hour")
+        insert_log(competitor_id, "collector", "No GitHub token — limited to 60 requests/hour", level="warning")
     return headers
 
 
-def _fetch_repos(github_org: str, headers: dict) -> tuple:
+def _fetch_repos(github_org: str, headers: dict, competitor_id: int) -> tuple:
     """
     Fetch public repositories for the organization.
     Sorted by most recently pushed — most active repos first.
@@ -118,10 +122,12 @@ def _fetch_repos(github_org: str, headers: dict) -> tuple:
 
         if response.status_code == 404:
             print(f"   ❌ GitHub org '{github_org}' not found")
+            insert_log(competitor_id, "collector", f"GitHub org '{github_org}' not found", level="error")
             return [], {}
 
         if response.status_code == 403:
             print(f"   ❌ GitHub rate limit hit — add GITHUB_TOKEN to .env")
+            insert_log(competitor_id, "collector", "GitHub rate limit hit — add GITHUB_TOKEN to .env", level="error")
             return [], {}
 
         response.raise_for_status()
@@ -165,15 +171,17 @@ def _fetch_repos(github_org: str, headers: dict) -> tuple:
 
         if ai_repos:
             print(f"   🤖 AI-related repos detected: {[r['name'] for r in ai_repos]}")
+            insert_log(competitor_id, "collector", f"AI-related repos detected: {[r['name'] for r in ai_repos]}")
 
         return repo_data, metadata
 
     except Exception as e:
         print(f"❌ Error fetching repos for {github_org}: {e}")
+        insert_log(competitor_id, "collector", f"Error fetching repos for {github_org}: {e}", level="error")
         return [], {}
 
 
-def _fetch_recent_commits(github_org: str, repos: list, headers: dict) -> tuple:
+def _fetch_recent_commits(github_org: str, repos: list, headers: dict, competitor_id: int) -> tuple:
     """
     Fetch recent commits from the most active repos.
     Analyzes commit messages for AI/feature signals.
@@ -207,6 +215,7 @@ def _fetch_recent_commits(github_org: str, repos: list, headers: dict) -> tuple:
 
         except Exception as e:
             print(f"   ⚠️  Could not fetch commits for {repo_name}: {e}")
+            insert_log(competitor_id, "collector", f"Could not fetch commits for {repo_name}: {e}", level="warning")
             continue
 
     # Analyze commit messages
@@ -229,7 +238,9 @@ def _fetch_recent_commits(github_org: str, repos: list, headers: dict) -> tuple:
 
     if ai_commits:
         print(f"   🤖 AI-related commits detected: {len(ai_commits)}")
+        insert_log(competitor_id, "collector", f"AI-related commits detected: {len(ai_commits)}")
     print(f"   📊 Commits in last 7 days: {recent_commits}")
+    insert_log(competitor_id, "collector", f"Commits in last 7 days: {recent_commits}")
 
     return all_commits, metadata
 

@@ -107,6 +107,7 @@ export default function TimelinePage() {
             <Link href="/battlecards" className="text-gray-400 hover:text-white transition">Battlecards</Link>
             <Link href="/timeline" className="text-blue-400 font-medium">Timeline</Link>
             <Link href="/timeline" className="text-gray-400 hover:text-white transition">Timeline</Link>
+            <Link href="/activity" className="text-gray-400 hover:text-white transition">Activity</Link>
           </nav>
         </div>
       </header>

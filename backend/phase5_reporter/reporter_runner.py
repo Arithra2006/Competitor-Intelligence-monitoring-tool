@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import init_db, get_competitor_by_id, get_all_competitors, insert_report
+from database import init_db, get_competitor_by_id, get_all_competitors, insert_report, insert_log
 from models.signal import ScoredSignal
 from models.report import IntelligenceReport
 from briefing_generator import generate_briefing
@@ -45,6 +45,8 @@ def run_reporter_for_competitor(
     print(f"   Started at        : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{'='*55}")
 
+    insert_log(competitor_id, "reporter", f"Started reporter — {len(scored_signals)} signal(s) to report")
+
     # Step 1 — Generate base briefing
     print("\n⏳ Generating briefing...")
     report = generate_briefing(
@@ -77,6 +79,11 @@ def run_reporter_for_competitor(
     print(f"   Priority summary  : {report.priority_summary()}")
     print(f"   Report length     : {len(report.report_text)} characters")
     print(f"{'─'*55}\n")
+
+    insert_log(
+        competitor_id, "reporter",
+        f"Report generated — {report.total_signals()} signal(s), report ID {report_id}"
+    )
 
     return report
 

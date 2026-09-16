@@ -4,13 +4,13 @@
 
 import feedparser
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 import sys
 import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import insert_snapshot
+from database import insert_snapshot, insert_log
 from models.competitor import RawScrapedData
 
 
@@ -47,11 +47,13 @@ def parse_news(competitor_id: int, competitor_name: str) -> RawScrapedData | Non
         RawScrapedData object with news text + metadata, or None on failure
     """
     print(f"📰 Fetching news for: {competitor_name}")
+    insert_log(competitor_id, "collector", f"Fetching news for {competitor_name}")
 
-    articles, metadata = _fetch_news(competitor_name)
+    articles, metadata = _fetch_news(competitor_name, competitor_id)
 
     if not articles:
         print(f"⚠️  No news found for {competitor_name} — skipping.")
+        insert_log(competitor_id, "collector", f"No news found for {competitor_name}", level="warning")
         return None
 
     # Build raw text from all article titles + summaries
@@ -81,7 +83,7 @@ def parse_news(competitor_id: int, competitor_name: str) -> RawScrapedData | Non
 # INTERNAL HELPERS
 # ─────────────────────────────────────────
 
-def _fetch_news(competitor_name: str) -> tuple:
+def _fetch_news(competitor_name: str, competitor_id: int) -> tuple:
     """
     Fetch RSS feed from Google News and parse articles.
     Returns (articles_list, metadata_dict).
@@ -104,11 +106,12 @@ def _fetch_news(competitor_name: str) -> tuple:
             }
             articles.append(article)
 
-        metadata = _analyze_news_signals(articles, competitor_name)
+        metadata = _analyze_news_signals(articles, competitor_name, competitor_id)
         return articles, metadata
 
     except Exception as e:
         print(f"❌ Error fetching news for {competitor_name}: {e}")
+        insert_log(competitor_id, "collector", f"Error fetching news: {e}", level="error")
         return [], {}
 
 
@@ -135,7 +138,7 @@ def _clean_html(text: str) -> str:
     return clean
 
 
-def _analyze_news_signals(articles: list, competitor_name: str) -> dict:
+def _analyze_news_signals(articles: list, competitor_name: str, competitor_id: int) -> dict:
     """
     Scan article titles and summaries for high-signal keywords.
     Returns structured metadata dict.
@@ -159,16 +162,19 @@ def _analyze_news_signals(articles: list, competitor_name: str) -> dict:
         "product_detected": len(product_signals) > 0,
         "leadership_signals": leadership_signals,
         "leadership_detected": len(leadership_signals) > 0,
-        "fetched_at": datetime.utcnow().isoformat(),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Log signals found
+    # Log signals found — both to terminal and to the database
     if funding_signals:
         print(f"   💰 Funding signals detected: {funding_signals}")
+        insert_log(competitor_id, "collector", f"Funding signals detected: {funding_signals}")
     if product_signals:
         print(f"   🚀 Product signals detected: {product_signals}")
+        insert_log(competitor_id, "collector", f"Product signals detected: {product_signals}")
     if leadership_signals:
         print(f"   👤 Leadership signals detected: {leadership_signals}")
+        insert_log(competitor_id, "collector", f"Leadership signals detected: {leadership_signals}")
 
     return metadata
 

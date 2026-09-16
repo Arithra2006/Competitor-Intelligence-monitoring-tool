@@ -1,4 +1,3 @@
-
 # backend/phase3_classifier/classifier_runner.py
 # Master runner for Phase 3 — ties classifier and snapshot store together
 # Takes Phase 2 output (DetectedChange list), returns ClassifiedSignal list
@@ -9,7 +8,7 @@ from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import init_db, get_all_competitors, get_competitor_by_id
+from database import init_db, get_all_competitors, get_competitor_by_id, insert_log
 from models.snapshot import DetectedChange
 from models.signal import ClassifiedSignal
 from change_classifier import classify_changes_batch
@@ -45,8 +44,11 @@ def run_classifier_for_competitor(
     print(f"   Started at          : {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC")
     print(f"{'='*55}")
 
+    insert_log(competitor_id, "classifier", f"Started classifier — {len(detected_changes)} change(s) to classify")
+
     if not detected_changes:
         print("⚠️  No changes to classify — skipping")
+        insert_log(competitor_id, "classifier", "No changes to classify — skipped", level="warning")
         return []
 
     # Step 1 — Classify all changes using Groq
@@ -54,10 +56,18 @@ def run_classifier_for_competitor(
 
     if not classified_signals:
         print("⚠️  No signals classified successfully")
+        insert_log(competitor_id, "classifier", "No signals classified successfully", level="warning")
         return []
 
     # Step 2 — Save all classified signals to SQLite
     save_classified_snapshots_batch(classified_signals)
+
+    # Log each classified signal individually
+    for s in classified_signals:
+        insert_log(
+            competitor_id, "classifier",
+            f"{s.source}: classified as '{s.change_type}' ({s.metadata.get('confidence', 0)}% confidence)"
+        )
 
     # Summary
     print(f"\n{'─'*55}")
@@ -67,6 +77,11 @@ def run_classifier_for_competitor(
     for s in classified_signals:
         print(f"   {s.priority_emoji()} {s.source:<10} → {s.change_type}")
     print(f"{'─'*55}\n")
+
+    insert_log(
+        competitor_id, "classifier",
+        f"Classifier complete — {len(classified_signals)}/{len(detected_changes)} signal(s) classified"
+    )
 
     return classified_signals
 

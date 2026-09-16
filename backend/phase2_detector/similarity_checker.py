@@ -1,3 +1,4 @@
+
 # backend/phase2_detector/similarity_checker.py
 # Compares new embedding vs stored embedding
 # Filters out trivial changes — only passes meaningful changes forward
@@ -119,6 +120,7 @@ def is_meaningful_change(
     url: str,
     new_text: str,
     old_text: str,
+    source_metadata: dict | None = None,
 ) -> DetectedChange | None:
     """
     Full check — returns a DetectedChange object if meaningful,
@@ -132,6 +134,10 @@ def is_meaningful_change(
         url: Scraped URL
         new_text: Freshly scraped text
         old_text: Previously stored text (from SQLite snapshot)
+        source_metadata: Original metadata from Phase 1 collector
+            (e.g. articles list for news, commits list for github).
+            Carried forward so the report can later show the actual
+            source content, not just a generic AI-written line.
 
     Returns:
         DetectedChange object if meaningful, None if trivial
@@ -155,6 +161,7 @@ def is_meaningful_change(
         new_text=new_text,
         similarity_score=similarity,
         detected_at=datetime.now(timezone.utc).isoformat(),
+        source_metadata=source_metadata or {},
         metadata={
             "threshold_used": SOURCE_THRESHOLDS.get(source, SIMILARITY_THRESHOLD),
             "similarity_percent": int(similarity * 100),
@@ -208,6 +215,7 @@ def batch_check_similarities(
                 url=data.url,
                 new_text=data.raw_text,
                 old_text=old_text,
+                source_metadata=data.metadata,
             )
 
             if change:
