@@ -322,6 +322,12 @@ def _format_signal_section(
         lines.append(f"\n  INSIGHT")
         lines.append(f"  {insight}")
 
+    # Source excerpt — the actual article or commit that triggered this,
+    # when available (news and github sources only)
+    excerpt_lines = _format_source_excerpts(signal)
+    if excerpt_lines:
+        lines.extend(excerpt_lines)
+
     # Why it matters
     why_text = why.get("why_it_matters", "")
     if why_text:
@@ -335,6 +341,42 @@ def _format_signal_section(
         lines.append(f"\n  WATCH FOR (next {why.get('timeframe', 'quarter')})")
         for w in watch_for:
             lines.append(f"  • {w}")
+
+    return lines
+
+
+def _format_source_excerpts(signal: ScoredSignal) -> list[str]:
+    """
+    Build the "SOURCE ARTICLE" / "SOURCE COMMIT" block for any evidence
+    item that has a source_excerpt attached (news articles, github commits).
+    Returns an empty list if no evidence on this signal has an excerpt.
+    """
+    lines = []
+
+    for item in signal.evidence:
+        excerpt = item.get("source_excerpt")
+        if not excerpt:
+            continue
+
+        if excerpt.get("kind") == "article":
+            lines.append(f"\n  SOURCE ARTICLE")
+            title = excerpt.get("title", "")
+            source_name = excerpt.get("source_name", "Unknown")
+            published = excerpt.get("published", "")
+            lines.append(f"  \"{title}\" — {source_name}, {published}")
+            summary = excerpt.get("summary", "")
+            if summary:
+                lines.append(f"  {summary[:250]}")
+            link = excerpt.get("link", "")
+            if link:
+                lines.append(f"  {link}")
+
+        elif excerpt.get("kind") == "commit":
+            lines.append(f"\n  SOURCE COMMIT")
+            repo = excerpt.get("repo", "")
+            date = excerpt.get("date", "")[:10]
+            message = excerpt.get("message", "")
+            lines.append(f"  [{repo}] {date} — {message}")
 
     return lines
 

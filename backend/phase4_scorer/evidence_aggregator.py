@@ -105,6 +105,7 @@ def _build_evidence_bundle(
             "similarity_score": signal.similarity_score,
             "groq_confidence": signal.metadata.get("confidence", 50),
             "change_magnitude": signal.metadata.get("change_magnitude", "MINOR"),
+            "source_excerpt": signal.metadata.get("source_excerpt"),
         })
 
     # Calculate source agreement score
