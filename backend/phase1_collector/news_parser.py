@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 import sys
 import os
+import urllib.parse  # <--- Added for safe query encoding
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -18,7 +19,6 @@ from models.competitor import RawScrapedData
 # CONSTANTS
 # ─────────────────────────────────────────
 
-GOOGLE_NEWS_RSS = "https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
 MAX_ARTICLES = 10  # Only grab top 10 results per competitor
 
 # High signal keywords in news
@@ -49,7 +49,7 @@ def parse_news(competitor_id: int, competitor_name: str) -> RawScrapedData | Non
     print(f"📰 Fetching news for: {competitor_name}")
     insert_log(competitor_id, "collector", f"Fetching news for {competitor_name}")
 
-    articles, metadata = _fetch_news(competitor_name, competitor_id)
+    articles, metadata, rss_url = _fetch_news(competitor_name, competitor_id)
 
     if not articles:
         print(f"⚠️  No news found for {competitor_name} — skipping.")
@@ -60,7 +60,6 @@ def parse_news(competitor_id: int, competitor_name: str) -> RawScrapedData | Non
     raw_text = _build_raw_text(articles)
 
     # Save snapshot to SQLite
-    rss_url = GOOGLE_NEWS_RSS.format(query=competitor_name.replace(" ", "+"))
     insert_snapshot(
         competitor_id=competitor_id,
         source="news",
@@ -85,34 +84,54 @@ def parse_news(competitor_id: int, competitor_name: str) -> RawScrapedData | Non
 
 def _fetch_news(competitor_name: str, competitor_id: int) -> tuple:
     """
-    Fetch RSS feed from Google News and parse articles.
-    Returns (articles_list, metadata_dict).
+    Fetch RSS feed from Google News and parse articles with strict query building 
+    and relevancy filtering.
+    Returns (articles_list, metadata_dict, rss_url).
     """
     try:
-        rss_url = GOOGLE_NEWS_RSS.format(query=competitor_name.replace(" ", "+"))
+        # Dynamically build a smart, context-aware query to prevent random noise/time-travel posts
+        refined_query = f'"{competitor_name}" AND (software OR app OR startup OR platform OR product OR company)'
+        encoded_query = urllib.parse.quote(refined_query)
+        rss_url = f"https://news.google.com/rss/search?q={encoded_query}&hl=en-US&gl=US&ceid=US:en"
+        
         feed = feedparser.parse(rss_url)
 
         if not feed.entries:
-            return [], {}
+            return [], {}, rss_url
 
         articles = []
-        for entry in feed.entries[:MAX_ARTICLES]:
+        comp_lower = competitor_name.lower()
+
+        for entry in feed.entries:
+            title = entry.get("title", "")
+            summary = _clean_html(entry.get("summary", ""))
+            
+            # 🛡️ RELEVANCY FILTER: Ensure the company name actually appears in the article text
+            combined_text = f"{title} {summary}".lower()
+            if comp_lower not in combined_text:
+                print(f"   Filtered out irrelevant match: {title[:50]}...")
+                continue
+
             article = {
-                "title": entry.get("title", ""),
-                "summary": _clean_html(entry.get("summary", "")),
+                "title": title,
+                "summary": summary,
                 "link": entry.get("link", ""),
                 "published": entry.get("published", ""),
                 "source": entry.get("source", {}).get("title", "Unknown"),
             }
             articles.append(article)
 
+            # Respect max limit after filtering
+            if len(articles) >= MAX_ARTICLES:
+                break
+
         metadata = _analyze_news_signals(articles, competitor_name, competitor_id)
-        return articles, metadata
+        return articles, metadata, rss_url
 
     except Exception as e:
         print(f"❌ Error fetching news for {competitor_name}: {e}")
         insert_log(competitor_id, "collector", f"Error fetching news: {e}", level="error")
-        return [], {}
+        return [], {}, ""
 
 
 def _build_raw_text(articles: list) -> str:
@@ -165,7 +184,6 @@ def _analyze_news_signals(articles: list, competitor_name: str, competitor_id: i
         "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    # Log signals found — both to terminal and to the database
     if funding_signals:
         print(f"   💰 Funding signals detected: {funding_signals}")
         insert_log(competitor_id, "collector", f"Funding signals detected: {funding_signals}")
